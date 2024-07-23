@@ -3,7 +3,8 @@ name: CI/CD pipeline
 on:
   push:
     branches: [main]
-
+env:
+    CONFIG_DIRECTORY: "spring-boot-app"
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
@@ -24,24 +25,26 @@ jobs:
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             ${{ runner.os }}-maven-
-       
+        
       - name: Show current directory
         run: pwd
-
+        working-directory: ${{ env.CONFIG_DIRECTORY }}
       - name: List files in the current directory
         run: ls -la
+        working-directory: ${{ env.CONFIG_DIRECTORY }}
+    #   - name: Change directory to project root
+    #     run: cd spring-boot-app #
 
-      - name: Change directory to project root
-        run: cd spring-boot-app #
       - name: Install Maven dependencies
         run: mvn install
-
+        working-directory: ${{ env.CONFIG_DIRECTORY }}
       - name: Run unit tests
         id: run_unit_tests
         run: mvn test
-
+        working-directory: ${{ env.CONFIG_DIRECTORY }}
       - name: Generate code coverage report
         run: mvn jacoco:report
+        working-directory: ${{ env.CONFIG_DIRECTORY }}
 
       - name: SonarQube analysis
         uses: SonarSource/sonarcloud-github-action@master

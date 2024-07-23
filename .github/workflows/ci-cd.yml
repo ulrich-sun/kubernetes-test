@@ -42,9 +42,9 @@ jobs:
         id: run_unit_tests
         run: mvn test
         working-directory: ${{ env.CONFIG_DIRECTORY }}
-      - name: Install Jacoco plugin
-        run: mvn install -DskipTests=true org.jacoco:jacoco-maven-plugin
-        working-directory: ${{ env.CONFIG_DIRECTORY }}
+    #   - name: Install Jacoco plugin
+    #     run: mvn install -DskipTests=true org.jacoco:jacoco-maven-plugin
+    #     working-directory: ${{ env.CONFIG_DIRECTORY }}
       - name: Generate code coverage report
         run: mvn jacoco:report
         working-directory: ${{ env.CONFIG_DIRECTORY }}

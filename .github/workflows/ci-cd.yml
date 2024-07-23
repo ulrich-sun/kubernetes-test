@@ -32,18 +32,16 @@ jobs:
         run: mvn test
 
       - name: Generate code coverage report
-        uses: jacoco/github-actions@v1.0.1
-        with:
-          csv: true
+        run: mvn jacoco:report
 
       - name: SonarQube analysis
-        uses: sonarqube/sonarcloud-github-action@2.7.1
-        env:
-          SONARQUBE_SERVER_URL: ${{ secrets.SONARQUBE_SERVER_URL }}
-          SONARQUBE_ORGANIZATION: ${{ secrets.SONARQUBE_ORGANIZATION }}
-          SONARQUBE_PROJECT_NAME: ${{ github.repository }}
-          SONARQUBE_PROJECT_KEY: ${{ secrets.SONARQUBE_PROJECT_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        uses: SonarSource/sonarcloud-github-action@master
+        with:
+          args: >
+            -Dsonar.projectKey=${{ secrets.SONARQUBE_PROJECT_KEY }}
+            -Dsonar.organization=${{ secrets.SONARQUBE_ORGANIZATION }}
+            -Dsonar.host.url=${{ secrets.SONARQUBE_SERVER_URL }}
+            -Dsonar.login=${{ secrets.SONARQUBE_TOKEN }}
 
   build-docker:
     runs-on: ubuntu-latest
@@ -89,7 +87,7 @@ jobs:
       - name: Check if build or tests failed
         id: check-failure
         run: |
-          if [ "${{ needs.build-and-test.result }}" == "failure" ] || [ "${{ steps.sonarqube-analysis.outputs.quality_gate_status }}" != "SUCCESS" ]; then
+          if [ "${{ needs.build-and-test.result }}" == "failure" ] || [ "${{ steps.run_unit_tests.outcome }}" != "success" ]; then
             echo "send_notification=true" >> $GITHUB_ENV
           else
             echo "send_notification=false" >> $GITHUB_ENV

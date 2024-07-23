@@ -24,7 +24,15 @@ jobs:
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             ${{ runner.os }}-maven-
+       
+      - name: Show current directory
+        run: pwd
 
+      - name: List files in the current directory
+        run: ls -la
+
+      - name: Change directory to project root
+        run: cd spring-boot-app #
       - name: Install Maven dependencies
         run: mvn install
 

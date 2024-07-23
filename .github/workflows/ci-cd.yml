@@ -1,0 +1,109 @@
+name: CI/CD pipeline
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Java
+        uses: actions/setup-java@v3
+        with:
+          java-version: 11
+
+      - name: Cache Maven dependencies
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+
+      - name: Install Maven dependencies
+        run: mvn install
+
+      - name: Run unit tests
+        id: run_unit_tests
+        run: mvn test
+
+      - name: Generate code coverage report
+        uses: jacoco/github-actions@v1.0.1
+        with:
+          csv: true
+
+      - name: SonarQube analysis
+        uses: sonarqube/sonarcloud-github-action@2.7.1
+        env:
+          SONARQUBE_SERVER_URL: ${{ secrets.SONARQUBE_SERVER_URL }}
+          SONARQUBE_ORGANIZATION: ${{ secrets.SONARQUBE_ORGANIZATION }}
+          SONARQUBE_PROJECT_NAME: ${{ github.repository }}
+          SONARQUBE_PROJECT_KEY: ${{ secrets.SONARQUBE_PROJECT_KEY }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-docker:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: success()
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Build Docker image
+        run: docker buildx build --push --tag my-image:latest .
+
+  deploy:
+    runs-on: ubuntu-latest
+    needs: build-docker
+    env:
+      ARGOCD_SERVER_URL: ${{ secrets.ARGOCD_SERVER_URL }}
+      ARGOCD_USERNAME: ${{ secrets.ARGOCD_USERNAME }}
+      ARGOCD_PASSWORD: ${{ secrets.ARGOCD_PASSWORD }}
+
+    steps:
+      - name: Wait for ArgoCD server to be ready
+        run: |
+          until curl -s http://${{ env.ARGOCD_SERVER_URL }}/api/v1/health; do echo "Waiting for ArgoCD server..."; sleep 10; done
+
+      - name: Apply application manifest to ArgoCD
+        run: |
+          argocd app sync my-application --grpc-web
+
+      - name: Monitor ArgoCD deployment status
+        run: |
+          while true; do echo "Waiting for ArgoCD deployment..."; sleep 30; argocd app wait my-application --grpc-web; done
+
+  send-notification:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: always()
+
+    steps:
+      - name: Check if build or tests failed
+        id: check-failure
+        run: |
+          if [ "${{ needs.build-and-test.result }}" == "failure" ] || [ "${{ steps.sonarqube-analysis.outputs.quality_gate_status }}" != "SUCCESS" ]; then
+            echo "send_notification=true" >> $GITHUB_ENV
+          else
+            echo "send_notification=false" >> $GITHUB_ENV
+          fi
+
+      - name: Send email notification
+        if: env.send_notification == 'true'
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.example.com
+          server_port: 587
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: 'CI/CD Pipeline Failed'
+          body: 'The CI/CD pipeline has failed. Please check the logs for more details.'
+          to: recipient@example.com
+          from: sender@example.com
